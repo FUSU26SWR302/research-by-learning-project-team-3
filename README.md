@@ -12,19 +12,35 @@ Lê Quang Minh Đức - DE190607
 3. Chi tiết dự án & Hàm lượng nghiên cứu
 
 🔹 Phần Business (Nghiệp vụ của dự án)
-1. Business Model:
-- Định vị nền tảng: Hế thống đóng vai trò là bên thứ ba trung gian (Platform-as-a-Service), cung cấp giải pháp công nghệ để kết nối những người có xe ô tô nhãn rỗi và những người có nhu cầu thuê xe tự lái ngắn hạn.
-- Giải quyết vấn đề:
- + Với người thuê: Khó tìm xe với giá hợp lí, thủ tục giấy tờ rườm rà, rủi ro bị lừa cọc, khó đánh giá chất lượng xe thực tế.
- + Với chủ xe: Xe để không làm lãng phí khấu hao, khó tìm nguồn khách hàng tin cậy, lo sợ rủi ro mất cắp, tranh chấp với người dùng khi hư hỏng.
-2. Revenue Streams(Dòng tiền và doanh thu):
-- Phí hoa hồng (Commission Fee) - Nguồn thu cốt lõi: Nền tảng sẽ thu một tỷ lệ 14% trên tổng giá trị mỗi chuyến đi thành công. Số tiền này được trừ trực tiếp vào doanh thu của chủ xe trước khi nền tảng đối soát và chuyển tiền cho họ.
-- Phí giao nhận xe và phụ thu: Thu thêm phí nếu khách hàng yêu cầu giao/nhận xe tận nơi (tại sân bay, khách sạn, v.v.) hoặc phụ thu khi vượt số km giới hạn và trả xe trễ giờ quy định.
-- Phí đăng tin/Quảng cáo nổi bật (Listing/Ads Fee): Thu phí các đơn vị cho thuê xe chuyên nghiệp hoặc các chủ xe muốn ghim hiển thị xe của họ lên đầu trang kết quả tìm kiếm.
+1. Tuyên bố tầm nhìn (Vision Statement):
+Mục tiêu dài hạn: Xây dựng một nền tảng kết nối trực tiếp, minh bạch và an toàn giữa những người có ô tô nhàn rỗi và những người có nhu cầu thuê xe tự lái ngắn hạn. Hế thống đóng vai trò là bên thứ ba trung gian (Platform-as-a-Service) hướng tới việc tối ưu hóa nguồn lực phương tiện trong xã hội, giúp người thuê tiết kiệm chi phí, dễ dàng tìm được chiếc xe ưng ý chỉ với vài thao tác, đồng thời tạo ra nguồn thu nhập thụ động an toàn cho các chủ xe.
 
-3. Quy trình Dòng tiền & Thanh toán (Financial Flow):
-- Cơ chế tạm giữ tiền (Escrow): Khi Renter đặt xe, tiền thuê và tiền cọc sẽ được thanh toán qua cổng điện tử và chuyển vào tài khoản trung gian của hệ thống (Ví nền tảng).
-- Giải ngân an toàn: Chỉ khi trạng thái Use Case "Nhận/Trả xe" (UC18) hoàn tất, không có phát sinh khiếu nại (UC30), hệ thống mới tự động cắt 14% hoa hồng và tự động giải ngân phần tiền còn lại về tài khoản ngân hàng của Chủ xe, đồng thời hoàn cọc (nếu có) về thẻ của Renter.
+Nhóm người dùng chính được phục vụ:
+
+Người thuê xe (Khách hàng): Những cá nhân hoặc gia đình có nhu cầu sử dụng ô tô ngắn ngày để đi du lịch, công tác, hoặc di chuyển cá nhân nhưng không muốn hoặc chưa sở hữu xe.
+
+Chủ xe (Đối tác cho thuê): Các cá nhân hoặc doanh nghiệp nhỏ có ô tô nhàn rỗi muốn tận dụng tài sản để kiếm thêm thu nhập.
+
+2. Sơ đồ bối cảnh (Context Diagram)
+Hệ thống trung tâm: Nền tảng cho thuê ô tô tự lái (Web/App). Các tác nhân chính (Actors) và cách tương tác:
+
+Khách hàng (User): Tương tác để tìm kiếm xe theo địa điểm/thời gian, xem chi tiết xe, gửi yêu cầu đặt xe, thanh toán tiền cọc, xác nhận nhận/trả xe và đánh giá chuyến đi.
+
+Chủ xe (Car Owner): Tương tác để đăng ký tài khoản đối tác, tạo hồ sơ xe (thêm hình ảnh, giá cả, lịch bận), duyệt hoặc từ chối yêu cầu đặt xe từ khách, nhận thanh toán và đánh giá khách hàng.
+
+Hệ thống thanh toán (Payment Gateway): (Ví dụ như tích hợp VNPAY, Momo, hoặc thẻ ngân hàng). Tương tác để xử lý các giao dịch đặt cọc, thanh toán phần còn lại, giữ tiền đảm bảo và xử lý hoàn tiền nếu có hủy chuyến.
+
+Hệ thống bản đồ/định vị (Map API): Tương tác để lấy vị trí hiện tại của khách hàng, hiển thị danh sách các xe đang ở gần, và hỗ trợ chỉ đường đến điểm nhận xe.
+
+Quản trị viên (Admin): Tương tác để duyệt hồ sơ xe mới đăng ký (đảm bảo xe hợp lệ), quản lý tài khoản người dùng, giải quyết tranh chấp (nếu có va chạm, hỏng hóc), và xem báo cáo doanh thu.
+
+3. Danh sách sự kiện (Event List)
+- "Khách hàng gửi yêu cầu đặt xe": Hệ thống ghi nhận thông tin chuyến đi (thời gian, địa điểm, xe được chọn) và gửi thông báo chờ xác nhận đến Chủ xe.
+- "Chủ xe xác nhận yêu cầu thuê xe": Hệ thống chuyển trạng thái đơn hàng và yêu cầu Khách hàng thực hiện thanh toán tiền cọc trong một khoảng thời gian quy định.
+- "Khách hàng thanh toán cọc thành công": Hệ thống ghi nhận giao dịch, khóa lịch của chiếc xe đó trong khoảng thời gian đã đặt, và gửi thông báo chốt chuyến đi cho cả hai bên.
+- "Khách hàng nhận xe bắt đầu chuyến đi": Hai bên tiến hành giao xe (có thể tải lên biên bản đồng kiểm tình trạng xe lên hệ thống). Hệ thống bắt đầu tính thời gian tính phí thực tế.
+- "Khách hàng trả xe và hoàn tất chuyến đi": Hệ thống tính toán tổng chi phí cuối cùng (bao gồm cả phí phát sinh như quá giờ, phụ phí rửa xe nếu có), xử lý thanh toán phần còn lại và mở lại lịch trống cho xe.
+- "Khách hàng/Chủ xe gửi đánh giá (Rating/Review)": Hệ thống cập nhật điểm uy tín của tài khoản và hiển thị nhận xét trên hồ sơ công khai.
 
 4. Quy định & Chính sách nghiệp vụ (Business Policies):
 - Chính sách định giá: Chủ xe tự quyết định giá thuê theo ngày, nhưng hệ thống có thể áp dụng giới hạn mức trần/sàn, hoặc phụ thu phí vượt km, phí giao xe tận nơi.
@@ -55,21 +71,17 @@ Thiết kế mô hình dữ liệu chuẩn hóa: Nghiên cứu tổ chức cơ s
 CÔNG NGHỆ VÀ CÔNG CỤ SỬ DỤNG
 1. Công nghệ phát triển
 Ngôn ngữ chính: Java.
-
 Công nghệ Web: Servlet & JSP.
-
 Database: MySQL (Kết nối thông qua JDBC Driver hoặc JPA).
-
 Frontend: HTML, CSS, JavaScript kết hợp các thư viện giao diện như Bootstrap để tự động tối ưu hiển thị trên các màn hình máy tính và điện thoại (Responsive Design) mà không cần viết nhiều code CSS phức tạp.
 
 2. Công cụ hỗ trợ
-Thiết kế giao diện: Figma (Vẽ nhanh các màn hình chính để định hình luồng chạy của ứng dụng trước khi code).
-
-Quản lý mã nguồn: GitHub (Sử dụng các nhánh cơ bản để gộp code của các thành viên trong nhóm lại với nhau).
-
-Quản lý công việc: Jira.
+- Thiết kế giao diện: Figma (Vẽ nhanh các màn hình chính để định hình luồng chạy của ứng dụng trước khi code).
+- Quản lý mã nguồn: GitHub (Sử dụng các nhánh cơ bản để gộp code của các thành viên trong nhóm lại với nhau).
+- Quản lý công việc: Jira.
 
 3. Quản lý công việc (Link Jira)
 https://giahuynguyentq010605.atlassian.net/jira/software/projects/KAN/boards/2
 
 4. Thiết kế giao diện (Figma / Frontend)
+https://www.figma.com/design/24yoPSpyqK0TVfSjX8T1WV/Untitled?node-id=0-1&t=iZ2vDAehr4oizSpV-1
