@@ -52,11 +52,11 @@ Xử lý logic ràng buộc thời gian (Thuật toán cốt lõi của bài t�
 4. Nghiên cứu thiết kế cơ sở dữ liệu quan hệ (RDBMS)
 Thiết kế mô hình dữ liệu chuẩn hóa: Nghiên cứu tổ chức cơ sở dữ liệu MySQL đạt chuẩn 2NF/3NF gồm các bảng cốt lõi: Người dùng, Xe, Đơn thuê, và Hóa đơn. Đảm bảo tính toàn vẹn dữ liệu thông qua các ràng buộc khóa chính (Primary Key), khóa ngoại (Foreign Key) và cơ chế tự động cập nhật trạng thái xe khi đơn thuê được duyệt.
 
-CÔNG NGHỆ VÀ CÔNG CỤ SỬ DỤNG (ĐÃ TINH GỌN)
+CÔNG NGHỆ VÀ CÔNG CỤ SỬ DỤNG
 1. Công nghệ phát triển
 Ngôn ngữ chính: Java.
 
-Công nghệ Web: Servlet & JSP (nếu làm Java Web thuần) hoặc Spring Boot & Thymeleaf (nếu làm Framework).
+Công nghệ Web: Servlet & JSP.
 
 Database: MySQL (Kết nối thông qua JDBC Driver hoặc JPA).
 
@@ -67,7 +67,7 @@ Thiết kế giao diện: Figma (Vẽ nhanh các màn hình chính để định
 
 Quản lý mã nguồn: GitHub (Sử dụng các nhánh cơ bản để gộp code của các thành viên trong nhóm lại với nhau).
 
-Quản lý công việc: Jira (hoặc có thể thay bằng Trello cho đơn giản hơn nếu nhóm ít người) để phân chia đầu việc theo tuần.
+Quản lý công việc: Jira.
 
 3. Quản lý công việc (Link Jira)
 https://giahuynguyentq010605.atlassian.net/jira/software/projects/KAN/boards/2
