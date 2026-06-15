@@ -1,5 +1,5 @@
 {
-  "name": "car-rental-frontend",
+  "name": "client",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,10 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "lucide-react": "^1.17.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-router-dom": "^7.16.0"
+    "lucide-react": "^0.475.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
