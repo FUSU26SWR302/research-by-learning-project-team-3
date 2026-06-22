@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { db } from './models/index.js';
 
 // Import routes
@@ -11,8 +13,14 @@ import bookingRoutes from './routes/bookingRoutes.js';
 import supportRoutes from './routes/supportRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import emailRoutes from './routes/emailRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import renterActionRoutes from './routes/renterActionRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,7 +30,7 @@ app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' })); // Support base64 image uploads up to 10MB
+app.use(express.json({ limit: '10mb' }));
 
 // Health check / Root
 app.get('/', (req, res) => {
@@ -47,6 +55,9 @@ app.use(bookingRoutes);
 app.use(supportRoutes);
 app.use(adminRoutes);
 app.use(emailRoutes);
+app.use(paymentRoutes);
+app.use(renterActionRoutes);
+app.use(notificationRoutes);
 
 // Start server
 app.listen(PORT, () => {

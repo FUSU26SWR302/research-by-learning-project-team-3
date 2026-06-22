@@ -3,9 +3,18 @@ import { sql, getPool } from '../config/db.js';
 export const mapUserRow = async (p, userRow) => {
   const userId = userRow.user_id;
 
-  // 1. Get Role
-  const roleRes = await p.request().input('userId', sql.Int, userId)
-    .query('SELECT r.role_name FROM UserRole ur INNER JOIN Role r ON ur.role_id = r.role_id WHERE ur.user_id = @userId');
+  // Fetch Role, Wallet, KYC, and OTP tokens in parallel to avoid sequential query latency
+  const [roleRes, walletRes, kycRes, otpRes] = await Promise.all([
+    p.request().input('userId', sql.Int, userId)
+      .query('SELECT r.role_name FROM UserRole ur INNER JOIN Role r ON ur.role_id = r.role_id WHERE ur.user_id = @userId'),
+    p.request().input('userId', sql.Int, userId)
+      .query('SELECT * FROM Wallet WHERE user_id = @userId'),
+    p.request().input('userId', sql.Int, userId)
+      .query('SELECT * FROM KYC WHERE user_id = @userId'),
+    p.request().input('userId', sql.Int, userId)
+      .query('SELECT * FROM OTPVerification WHERE user_id = @userId AND is_used = 0')
+  ]);
+
   let role = 'renter';
   if (roleRes.recordset.length > 0) {
     const roleName = roleRes.recordset[0].role_name;
@@ -15,9 +24,6 @@ export const mapUserRow = async (p, userRow) => {
     else role = 'renter';
   }
 
-  // 2. Get Wallet
-  const walletRes = await p.request().input('userId', sql.Int, userId)
-    .query('SELECT * FROM Wallet WHERE user_id = @userId');
   let walletBalance = 0;
   let bankAccount = null;
   if (walletRes.recordset.length > 0) {
@@ -32,9 +38,6 @@ export const mapUserRow = async (p, userRow) => {
     }
   }
 
-  // 3. Get KYC
-  const kycRes = await p.request().input('userId', sql.Int, userId)
-    .query('SELECT * FROM KYC WHERE user_id = @userId');
   let licenseStatus = 'not_uploaded';
   let licenseImage = null;
   let kycDocuments = { cccd: null, cccdBack: null, license: null, carPapers: null };
@@ -56,9 +59,6 @@ export const mapUserRow = async (p, userRow) => {
     }
   }
 
-  // 4. Get verification tokens
-  const otpRes = await p.request().input('userId', sql.Int, userId)
-    .query('SELECT * FROM OTPVerification WHERE user_id = @userId AND is_used = 0');
   let emailVerificationToken = null;
   let resetPasswordToken = null;
   let resetPasswordExpires = null;
@@ -90,6 +90,7 @@ export const mapUserRow = async (p, userRow) => {
     walletBalance,
     bankAccount,
     kycDocuments,
+    kycRejectionReason: userRow.kyc_rejection_reason || null,
     createdAt: userRow.created_at ? new Date(userRow.created_at).toISOString() : new Date().toISOString()
   };
 };
@@ -214,6 +215,10 @@ export const userModel = {
       userUpdates.push('google_id = @googleId');
       userRequest.input('googleId', sql.VarChar, updateData.googleId);
     }
+    if (updateData.kycRejectionReason !== undefined) {
+      userUpdates.push('kyc_rejection_reason = @kycRejectionReason');
+      userRequest.input('kycRejectionReason', sql.NVarChar, updateData.kycRejectionReason);
+    }
 
     if (userUpdates.length > 0) {
       await userRequest.query(`UPDATE [User] SET ${userUpdates.join(', ')}, updated_at = GETDATE() WHERE user_id = @userId`);
@@ -246,7 +251,10 @@ export const userModel = {
     if (updateData.walletBalance !== undefined) {
       walletUpdates.push('balance = @balance');
       walletRequest.input('balance', sql.Decimal(18, 2), updateData.walletBalance);
+    } else {
+      walletRequest.input('balance', sql.Decimal(18, 2), null);
     }
+
     if (updateData.bankAccount !== undefined) {
       if (updateData.bankAccount) {
         walletUpdates.push('bank_name = @bankName, bank_account_number = @bankAccountNo, is_bank_verified = 1');
@@ -254,7 +262,12 @@ export const userModel = {
         walletRequest.input('bankAccountNo', sql.VarChar, updateData.bankAccount.accountNumber);
       } else {
         walletUpdates.push('bank_name = NULL, bank_account_number = NULL, is_bank_verified = 0');
+        walletRequest.input('bankName', sql.NVarChar, null);
+        walletRequest.input('bankAccountNo', sql.VarChar, null);
       }
+    } else {
+      walletRequest.input('bankName', sql.NVarChar, null);
+      walletRequest.input('bankAccountNo', sql.VarChar, null);
     }
 
     if (walletUpdates.length > 0) {

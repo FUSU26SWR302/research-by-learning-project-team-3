@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { db } from '../models/index.js';
 import { auth } from '../middleware/auth.js';
 import { verifyCCCDQr } from '../utils/qrHelper.js';
+import { verifyKycWithAI } from '../utils/aiHelper.js';
 
 const router = express.Router();
 
@@ -64,29 +65,30 @@ router.put('/change-password', auth, async (req, res) => {
   }
 });
 
-// 11. Upload KYC Documents
+// 11. Upload KYC Documents (Enhanced with Automated AI Vision Verification using Gemini)
 router.put('/kyc', auth, async (req, res) => {
   try {
     const { cccdImage, cccdBackImage, licenseImage, carPapersImage } = req.body;
     const user = await db.users.findOne({ id: req.user.id });
 
-    let autoVerifySuccess = false;
-    let qrErrorMsg = null;
+    // Identify if any new images are being uploaded
+    const isNewCccd = cccdImage && cccdImage !== user.kycDocuments?.cccd;
+    const isNewCccdBack = cccdBackImage && cccdBackImage !== user.kycDocuments?.cccdBack;
+    const isNewLicense = licenseImage && licenseImage !== user.kycDocuments?.license;
 
-    if (cccdImage && cccdImage !== user.kycDocuments?.cccd) {
-      console.log('Validating uploaded CCCD QR code...');
-      const qrResult = await verifyCCCDQr(cccdImage, user.name);
-      if (qrResult.verified) {
-        autoVerifySuccess = true;
-      } else {
-        qrErrorMsg = qrResult.reason;
-      }
-    }
+    let kycAttempted = false;
+    let aiResult = null;
 
-    if (cccdImage && cccdImage !== user.kycDocuments?.cccd && !autoVerifySuccess) {
-      return res.status(400).json({ 
-        message: `Xác thực giấy tờ thất bại: ${qrErrorMsg}` 
-      });
+    if (isNewCccd || isNewCccdBack || isNewLicense) {
+      kycAttempted = true;
+      console.log('Sending uploaded documents to Gemini Vision API for automatic KYC...');
+      
+      const frontCccd = cccdImage || user.kycDocuments?.cccd || null;
+      const backCccd = cccdBackImage || user.kycDocuments?.cccdBack || null;
+      const license = licenseImage || user.kycDocuments?.license || null;
+      
+      aiResult = await verifyKycWithAI(frontCccd, backCccd, license, user.name);
+      console.log('AI KYC Result:', aiResult);
     }
 
     const newKyc = {
@@ -96,20 +98,48 @@ router.put('/kyc', auth, async (req, res) => {
       carPapers: carPapersImage || user.kycDocuments?.carPapers || null
     };
 
-    const licenseStatus = 'verified';
+    let licenseStatus = user.licenseStatus;
+    let cccdStatus = user.kycDocuments?.cccd ? 'verified' : undefined;
+    let cccdBackStatus = user.kycDocuments?.cccdBack ? 'verified' : undefined;
+    let kycRejectionReason = null;
+
+    if (kycAttempted && aiResult) {
+      if (aiResult.verified) {
+        licenseStatus = licenseImage ? 'verified' : user.licenseStatus;
+        cccdStatus = cccdImage ? 'verified' : undefined;
+        cccdBackStatus = cccdBackImage ? 'verified' : undefined;
+        kycRejectionReason = null;
+      } else {
+        licenseStatus = licenseImage ? 'rejected' : user.licenseStatus;
+        cccdStatus = cccdImage ? 'rejected' : undefined;
+        cccdBackStatus = cccdBackImage ? 'rejected' : undefined;
+        kycRejectionReason = aiResult.reason || 'Thông tin giấy tờ không hợp lệ.';
+      }
+    } else {
+      // Compatibility fallback
+      licenseStatus = licenseImage ? 'verified' : user.licenseStatus;
+    }
 
     const updatedUser = await db.users.update(req.user.id, {
       kycDocuments: newKyc,
       licenseStatus,
       licenseImage: licenseImage || user.licenseImage,
-      cccdStatus: cccdImage ? 'verified' : undefined,
-      cccdBackStatus: cccdBackImage ? 'verified' : undefined
+      cccdStatus,
+      cccdBackStatus,
+      kycRejectionReason
     });
 
-    res.json({
-      message: 'Xác thực hồ sơ KYC thành công! Trạng thái hoạt động của bạn đã được kích hoạt.',
-      user: sanitizeUser(updatedUser)
-    });
+    if (kycAttempted && aiResult && !aiResult.verified) {
+      res.json({
+        message: `Hồ sơ KYC tự động bị từ chối bởi AI: ${aiResult.reason}`,
+        user: sanitizeUser(updatedUser)
+      });
+    } else {
+      res.json({
+        message: 'Hồ sơ KYC của bạn đã được xác minh thành công bằng AI!',
+        user: sanitizeUser(updatedUser)
+      });
+    }
   } catch (error) {
     console.error('KYC upload error:', error);
     res.status(500).json({ message: 'Lỗi cập nhật hồ sơ KYC.' });

@@ -39,11 +39,16 @@ export const AdminDashboard = ({ setCurrentTab }) => {
   const [ticketsList, setTicketsList] = useState([]);
   const [incidentsList, setIncidentsList] = useState([]);
   const [disputesList, setDisputesList] = useState([]);
+  const [monthlyStats, setMonthlyStats] = useState([]);
 
   // Settings Config State (UC29)
   const [serviceFee, setServiceFee] = useState(5);
   const [insuranceMul, setInsuranceMul] = useState(1.1);
   const [sysNotice, setSysNotice] = useState('');
+  const [bankId, setBankId] = useState('mbbank');
+  const [bankName, setBankName] = useState('ViVuCar Bank');
+  const [bankAccountNumber, setBankAccountNumber] = useState('1900533588');
+  const [bankAccountHolder, setBankAccountHolder] = useState('VIVUCAR SYSTEM');
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -118,6 +123,18 @@ export const AdminDashboard = ({ setCurrentTab }) => {
       setServiceFee(config.serviceFeePercent);
       setInsuranceMul(config.insuranceMultiplier);
       setSysNotice(config.systemNotice || '');
+      setBankId(config.bankId || 'mbbank');
+      setBankName(config.bankName || 'ViVuCar Bank');
+      setBankAccountNumber(config.bankAccountNumber || '1900533588');
+      setBankAccountHolder(config.bankAccountHolder || 'VIVUCAR SYSTEM');
+
+      // 11. Monthly Revenue Stats (for chart)
+      try {
+        const monthly = await api.admin.getMonthlyStats();
+        setMonthlyStats(monthly.monthlyStats || []);
+      } catch (e) {
+        console.warn('Monthly stats unavailable:', e.message);
+      }
 
     } catch (error) {
       console.error('Fetch command center error:', error);
@@ -131,6 +148,16 @@ export const AdminDashboard = ({ setCurrentTab }) => {
     detectRoleAndData();
     fetchDashboardData();
   }, []);
+
+  // Reset chat reply inputs when switching between tickets
+  useEffect(() => {
+    setReplyText('');
+  }, [selectedTicket]);
+
+  // Reset dispute resolution text when switching between disputes
+  useEffect(() => {
+    setDisputeVerdict('');
+  }, [selectedDispute]);
 
   // 1. Duyệt KYC (UC31)
   const handleApproveKyc = async (userId, approve) => {
@@ -172,10 +199,31 @@ export const AdminDashboard = ({ setCurrentTab }) => {
       const data = await api.admin.replySupportTicket(selectedTicket.id, replyText);
       showToast(data.message, 'success');
       setReplyText('');
-      setSelectedTicket(null);
+      if (data.ticket) {
+        setSelectedTicket(data.ticket);
+      } else {
+        setSelectedTicket(null);
+      }
       fetchDashboardData(true);
     } catch (error) {
       showToast(error.message || 'Lỗi gửi phản hồi.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResolveTicket = async (ticketId) => {
+    const confirmResolve = window.confirm("Bạn có chắc chắn muốn đóng và hoàn tất yêu cầu hỗ trợ này?");
+    if (!confirmResolve) return;
+
+    setActionLoading(true);
+    try {
+      const data = await api.admin.resolveSupportTicket(ticketId);
+      showToast(data.message, 'success');
+      setSelectedTicket(null);
+      fetchDashboardData(true);
+    } catch (error) {
+      showToast(error.message || 'Lỗi đóng ticket hỗ trợ.', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -208,7 +256,11 @@ export const AdminDashboard = ({ setCurrentTab }) => {
       const data = await api.admin.updateSystemConfig({
         serviceFeePercent: serviceFee,
         insuranceMultiplier: insuranceMul,
-        systemNotice: sysNotice
+        systemNotice: sysNotice,
+        bankId,
+        bankName,
+        bankAccountNumber,
+        bankAccountHolder
       });
       showToast(data.message, 'success');
       fetchDashboardData(true);
@@ -545,6 +597,7 @@ export const AdminDashboard = ({ setCurrentTab }) => {
             <OverviewTab
               stats={stats}
               usersList={usersList}
+              monthlyStats={monthlyStats}
               handleUpdateUserRole={handleUpdateUserRole}
               handleApproveKyc={handleApproveKyc}
               actionLoading={actionLoading}
@@ -598,6 +651,7 @@ export const AdminDashboard = ({ setCurrentTab }) => {
               replyText={replyText}
               setReplyText={setReplyText}
               handleReplyTicket={handleReplyTicket}
+              handleResolveTicket={handleResolveTicket}
               reviewsList={reviewsList}
               handleToggleReviewVisibility={handleToggleReviewVisibility}
               incidentsList={incidentsList}
@@ -621,6 +675,14 @@ export const AdminDashboard = ({ setCurrentTab }) => {
               setInsuranceMul={setInsuranceMul}
               sysNotice={sysNotice}
               setSysNotice={setSysNotice}
+              bankId={bankId}
+              setBankId={setBankId}
+              bankName={bankName}
+              setBankName={setBankName}
+              bankAccountNumber={bankAccountNumber}
+              setBankAccountNumber={setBankAccountNumber}
+              bankAccountHolder={bankAccountHolder}
+              setBankAccountHolder={setBankAccountHolder}
               handleUpdateConfig={handleUpdateConfig}
               actionLoading={actionLoading}
             />

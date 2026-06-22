@@ -168,6 +168,12 @@ export const api = {
         body: JSON.stringify(bookingData)
       }),
       
+    createVnpayUrl: (bookingId) =>
+      request('/payments/vnpay/create', {
+        method: 'POST',
+        body: JSON.stringify({ bookingId })
+      }),
+      
     getMyTrips: () => 
       request('/bookings/my-trips', {
         method: 'GET'
@@ -239,6 +245,12 @@ export const api = {
         method: 'PUT'
       }),
 
+    replyTicket: (id, replyText) =>
+      request(`/support/tickets/${id}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ replyText })
+      }),
+
     createDispute: (bookingId, description) =>
       request('/support/disputes', {
         method: 'POST',
@@ -256,6 +268,11 @@ export const api = {
   admin: {
     getStats: () => 
       request('/admin/stats', {
+        method: 'GET'
+      }),
+
+    getMonthlyStats: () =>
+      request('/admin/stats/monthly', {
         method: 'GET'
       }),
       
@@ -311,6 +328,11 @@ export const api = {
       request(`/admin/support/tickets/${id}/reply`, {
         method: 'POST',
         body: JSON.stringify({ replyText })
+      }),
+
+    resolveSupportTicket: (id) =>
+      request(`/admin/support/tickets/${id}/resolve`, {
+        method: 'PUT'
       }),
 
     getReviews: () =>
@@ -369,6 +391,14 @@ export const api = {
         method: 'DELETE'
       })
   },
+
+  chatbot: {
+    sendMessage: (message, history) => 
+      request('/chatbot/message', {
+        method: 'POST',
+        body: JSON.stringify({ message, history })
+      })
+  },
   
   emails: {
     getEmails: () => 
@@ -383,6 +413,23 @@ export const api = {
       
     clearAll: () => 
       request('/emails/clear', {
+        method: 'POST'
+      })
+  },
+
+  notifications: {
+    getNotifications: () =>
+      request('/notifications', {
+        method: 'GET'
+      }),
+      
+    markAsRead: (id) =>
+      request(`/notifications/${id}/read`, {
+        method: 'PUT'
+      }),
+      
+    markAllAsRead: () =>
+      request('/notifications/read-all', {
         method: 'POST'
       })
   }

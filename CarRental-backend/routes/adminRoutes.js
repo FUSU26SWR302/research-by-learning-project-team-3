@@ -1,6 +1,8 @@
 import express from 'express';
 import { db } from '../models/index.js';
 import { auth } from '../middleware/auth.js';
+import { notificationService } from '../services/notificationService.js';
+import { sql, getPool } from '../config/db.js';
 
 const router = express.Router();
 
@@ -48,6 +50,18 @@ router.put('/api/admin/users/:id/kyc', auth, cskhOrAdminAuth, async (req, res) =
         license: status === 'rejected' ? null : user.licenseImage
       }
     });
+
+    // Send KYC notifications
+    await notificationService.createNotification(
+      id,
+      status === 'verified' ? 'Xác thực KYC thành công' : 'Xác thực KYC thất bại',
+      status === 'verified'
+        ? 'Hồ sơ KYC (CCCD & Bằng lái) của bạn đã được xác minh thành công. Bạn đã có thể thuê xe!'
+        : 'Hồ sơ KYC (CCCD & Bằng lái) của bạn đã bị từ chối. Vui lòng cập nhật lại thông tin chính xác.',
+      'KYCResult',
+      null,
+      'KYC'
+    );
 
     res.json({
       message: `Đã phê duyệt trạng thái KYC thành công sang: ${status === 'verified' ? 'Đã xác minh ✓' : 'Từ chối ✕'}`,
@@ -135,9 +149,51 @@ router.post('/api/admin/support/tickets/:id/reply', auth, cskhOrAdminAuth, async
       status: 'replied'
     });
 
-    res.json({ message: 'Đã gửi câu trả lời phản hồi cho khách hàng!' });
+    // Notify Renter
+    if (ticket.userId) {
+      await notificationService.createNotification(
+        ticket.userId,
+        'Phản hồi hỗ trợ mới',
+        `CSKH đã phản hồi yêu cầu hỗ trợ của bạn cho ticket #${id}.`,
+        'TicketUpdate',
+        id,
+        'SupportTicket'
+      );
+    }
+
+    const updatedTicket = await db.support_tickets.findOne({ id });
+    res.json({
+      message: 'Đã gửi câu trả lời phản hồi cho khách hàng!',
+      ticket: updatedTicket
+    });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi gửi phản hồi.' });
+  }
+});
+
+router.put('/api/admin/support/tickets/:id/resolve', auth, cskhOrAdminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ticket = await db.support_tickets.findOne({ id });
+    if (!ticket) return res.status(404).json({ message: 'Ticket hỗ trợ không tồn tại.' });
+
+    await db.support_tickets.update(id, { status: 'resolved' });
+
+    // Notify Renter
+    if (ticket.userId) {
+      await notificationService.createNotification(
+        ticket.userId,
+        'Yêu cầu hỗ trợ đã được đóng',
+        `Ticket hỗ trợ #${id} của bạn đã được đánh dấu là Đã giải quyết.`,
+        'TicketUpdate',
+        id,
+        'SupportTicket'
+      );
+    }
+
+    res.json({ message: 'Đã đóng ticket hỗ trợ thành công!' });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi đóng ticket hỗ trợ.' });
   }
 });
 
@@ -217,19 +273,44 @@ router.put('/api/admin/bookings/:id/refund-deposit', auth, cskhOrAdminAuth, asyn
     const booking = await db.bookings.findOne({ id });
     if (!booking) return res.status(404).json({ message: 'Đơn đặt xe không tồn tại.' });
 
+    if (booking.depositStatus === 'refunded') {
+      return res.status(400).json({ message: 'Tiền cọc này đã được hoàn trả rồi.' });
+    }
+
     await db.bookings.update(id, { depositStatus: status });
 
     if (status === 'refunded') {
-      const user = await db.users.findOne({ id: booking.userId });
-      await db.users.update(user.id, { walletBalance: (user.walletBalance || 0) + 5000000 });
+      if (booking.paymentMethod === 'wallet') {
+        // Cộng 5.000.000đ tiền cọc vào ví người dùng qua stored procedure (an toàn, atomic)
+        const p = await getPool();
+        const refundAmount = 5000000;
+        const userId = parseInt(booking.userId);
+        const bookingIdInt = parseInt(id);
+
+        await p.request()
+          .input('userId', sql.Int, userId)
+          .input('bookingId', sql.Int, bookingIdInt)
+          .input('amount', sql.Decimal(18, 2), refundAmount)
+          .input('txnType', sql.NVarChar, 'DepositRefund')
+          .input('description', sql.NVarChar, `Hoàn trả tiền cọc bảo đảm cho đặt xe #${id}`)
+          .query('EXEC usp_ProcessWalletTransaction @user_id = @userId, @booking_id = @bookingId, @amount = @amount, @txn_type = @txnType, @description = @description');
+
+        console.log(`Deposit refunded to wallet: ${refundAmount} VND to userId=${userId} for bookingId=${id}`);
+      } else {
+        console.log(`Deposit marked as refunded offline/vnpay: bookingId=${id}`);
+      }
     }
+
 
     res.json({
       message: status === 'refunded'
-        ? 'Đã duyệt hoàn trả tiền cọc 5.000.000 VND thành công! Tiền đã được cộng vào ví của người dùng.'
+        ? (booking.paymentMethod === 'wallet'
+            ? 'Đã duyệt hoàn trả tiền cọc 5.000.000 VND thành công! Tiền đã được cộng vào ví của người dùng.'
+            : 'Đã duyệt hoàn cọc 5.000.000 VND! Do đơn đặt xe này thanh toán ngoại tuyến/VNPAY, tiền cọc sẽ do chủ xe hoàn trả trực tiếp.')
         : 'Đã giữ lại tiền đặt cọc do phát sinh các thiệt hại vật chất đối với xe.'
     });
   } catch (error) {
+    console.error('Lỗi hoàn cọc:', error);
     res.status(500).json({ message: 'Lỗi xử lý tiền cọc.' });
   }
 });
@@ -285,6 +366,20 @@ router.put('/api/admin/cars/:id/moderation', auth, cskhOrAdminAuth, async (req, 
       rejectionReason: status === 'rejected' ? rejectionReason : null
     });
 
+    // Notify Owner
+    if (car.ownerId) {
+      await notificationService.createNotification(
+        car.ownerId,
+        status === 'available' ? 'Phương tiện ký gửi đã được duyệt' : 'Phương tiện ký gửi bị từ chối',
+        status === 'available'
+          ? `Xe ${car.brand} ${car.model} của bạn đã được kiểm duyệt và hiển thị trên sàn cho thuê xe.`
+          : `Xe ${car.brand} ${car.model} của bạn đã bị từ chối kiểm duyệt. Lý do: ${rejectionReason || 'Không rõ lý do'}.`,
+        'SystemAlert',
+        id,
+        'Car'
+      );
+    }
+
     res.json({
       message: status === 'available'
         ? 'Duyệt phương tiện ký gửi lên sàn thành công!'
@@ -298,12 +393,16 @@ router.put('/api/admin/cars/:id/moderation', auth, cskhOrAdminAuth, async (req, 
 // 3. System notices & Pricing policies adjustment
 router.put('/api/admin/system/config', auth, adminAuth, async (req, res) => {
   try {
-    const { serviceFeePercent, insuranceMultiplier, systemNotice } = req.body;
+    const { serviceFeePercent, insuranceMultiplier, systemNotice, bankId, bankName, bankAccountNumber, bankAccountHolder } = req.body;
 
     const updated = await db.system_config.update({
       serviceFeePercent: serviceFeePercent !== undefined ? parseFloat(serviceFeePercent) : undefined,
       insuranceMultiplier: insuranceMultiplier !== undefined ? parseFloat(insuranceMultiplier) : undefined,
-      systemNotice
+      systemNotice,
+      bankId,
+      bankName,
+      bankAccountNumber,
+      bankAccountHolder
     });
 
     res.json({
@@ -325,16 +424,57 @@ router.get('/api/admin/stats', auth, cskhOrAdminAuth, async (req, res) => {
     const confirmedBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'completed' || b.status === 'active');
     const totalRevenue = confirmedBookings.reduce((sum, b) => sum + b.totalPrice, 0);
 
+    const rentedCount = cars.filter(c => c.status === 'rented').length;
+    const availableCount = cars.filter(c => c.status === 'available').length;
+    const maintenanceCount = cars.filter(c => c.status === 'maintenance' || c.status === 'inactive').length;
+    const pendingCount = cars.filter(c => c.status === 'pending_moderation').length;
+    const rejectedCount = cars.filter(c => c.status === 'rejected').length;
+
     res.json({
       stats: {
         totalUsers: users.length,
         totalCars: cars.length,
         totalBookings: bookings.length,
-        totalRevenue
+        totalRevenue,
+        rentedCars: rentedCount,
+        availableCars: availableCount,
+        maintenanceCars: maintenanceCount,
+        pendingCars: pendingCount,
+        rejectedCars: rejectedCount
       }
     });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi lấy số liệu thống kê.' });
+  }
+});
+
+// Thống kê doanh thu theo tháng (cho chart)
+router.get('/api/admin/stats/monthly', auth, cskhOrAdminAuth, async (req, res) => {
+  try {
+    const p = await getPool();
+    const result = await p.request().query(`
+      SELECT 
+        MONTH(b.created_at) as month,
+        ISNULL(SUM(b.rental_price), 0) as revenue,
+        COUNT(*) as bookings
+      FROM Booking b
+      WHERE b.status IN ('Approved', 'Active', 'Completed')
+        AND YEAR(b.created_at) = YEAR(GETDATE())
+      GROUP BY MONTH(b.created_at)
+      ORDER BY month ASC
+    `);
+    // Build full 12-month array with 0 for months with no data
+    const monthMap = {};
+    result.recordset.forEach(r => { monthMap[r.month] = { revenue: Number(r.revenue), bookings: r.bookings }; });
+    const monthlyStats = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      revenue: monthMap[i + 1]?.revenue || 0,
+      bookings: monthMap[i + 1]?.bookings || 0
+    }));
+    res.json({ monthlyStats });
+  } catch (error) {
+    console.error('Monthly stats error:', error);
+    res.status(500).json({ message: 'Lỗi lấy thống kê tháng.' });
   }
 });
 

@@ -50,6 +50,7 @@ export const RentCar = ({ user, onRentCarClick, setCurrentTab, onSearch }) => {
       const data = await api.cars.getCars(filters);
       setCars(data);
     } catch (error) {
+      console.error('Lỗi chi tiết khi lấy danh sách xe:', error);
       showToast('Không thể lấy danh sách xe.', 'error');
     } finally {
       setLoading(false);
@@ -128,7 +129,7 @@ export const RentCar = ({ user, onRentCarClick, setCurrentTab, onSearch }) => {
       car,
       pickupDate,
       returnDate,
-      pickupLocation: location
+      pickupLocation: location || car.location || 'Không xác định'
     });
     setSelectedCarDetails(null); // Close details modal if open
   };
@@ -477,10 +478,33 @@ export const RentCar = ({ user, onRentCarClick, setCurrentTab, onSearch }) => {
 
   return (
     <div className="rent-car-page">
+      {/* 📢 SYSTEM NOTICE BANNER */}
+      {systemConfig && systemConfig.systemNotice && (!user || (user.role !== 'renter' && user.role !== 'owner')) && (
+        <div className="homepage-notice-container">
+          <div className="system-notice-alert-wrapper">
+            <div className="system-notice-alert">
+              <div className="alert-glow-dot"></div>
+              <Info size={16} className="text-primary-teal flex-shrink-0" />
+              <div className="alert-msg-container">
+                <strong>Thông báo hệ thống:</strong> {systemConfig.systemNotice}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/*  ViVuCar BRANDED HERO SECTION */}
       <section className="vivu-hero">
+        {/* Thẻ video nền */}
+        <video className="hero-video-bg" autoPlay loop muted playsInline>
+          <source src="/home_banner.mp4" type="video/mp4" />
+          Trình duyệt của bạn không hỗ trợ video HTML5.
+        </video>
+
+        {/* Lớp phủ tối giúp chữ dễ đọc hơn */}
+        <div className="hero-overlay"></div>
         <div className="hero-content">
-          <span className="hero-badge">🚗 NỀN TẢNG THUÊ XE TỰ LÁI & KÝ GỬI THẾ HỆ MỚI</span>
+          {/* <span className="hero-badge">🚗 NỀN TẢNG THUÊ XE TỰ LÁI & KÝ GỬI THẾ HỆ MỚI</span> */}
           <h1 className="hero-title">Thuê xe tự lái ngắn hạn & ký gửi xe</h1>
           <p className="hero-subtitle">
             Trải nghiệm dịch vụ chia sẻ ô tô công nghệ hàng đầu Việt Nam. Thủ tục đơn giản, xe đời mới sạch sẽ, bảo hiểm chuyến đi trọn gói.
@@ -619,19 +643,6 @@ export const RentCar = ({ user, onRentCarClick, setCurrentTab, onSearch }) => {
           </div>
         </div>
       </section>
-
-      {/* 📢 SYSTEM NOTICE BANNER */}
-      {systemConfig && systemConfig.systemNotice && (
-        <div className="system-notice-alert-wrapper">
-          <div className="system-notice-alert">
-            <div className="alert-glow-dot"></div>
-            <Info size={16} className="text-primary-teal flex-shrink-0" />
-            <div className="alert-msg-container">
-              <strong>Thông báo hệ thống:</strong> {systemConfig.systemNotice}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* 📊 PRIMARY CATALOG LIVE SEARCH SECTION */}
@@ -817,64 +828,89 @@ export const RentCar = ({ user, onRentCarClick, setCurrentTab, onSearch }) => {
             </button>
 
             <div className="premium-car-row-scrollable" ref={luxuryScrollRef}>
-              {luxuryCars.map((car) => (
-                <div key={car.id} className="premium-row-car-card" onClick={() => handleViewCarDetails(car)}>
-                  {/* Image Container */}
-                  <div className="card-image-box">
-                    <img src={car.image} alt={car.model} className="card-image-element" />
+              {(() => {
+                const dbLuxuryCars = cars.filter(c => c.pricePerDay >= 1500000);
+                const listToRender = dbLuxuryCars.length > 0 ? dbLuxuryCars : luxuryCars;
 
-                    {/* Top badges */}
-                    <div className="card-badge-top-container">
-                      <span className="promo-badge-glow-yellow">👑 Xế xịn</span>
+                return listToRender.map((car) => {
+                  const isDbCar = !String(car.id).startsWith('lux-car-');
+
+                  // Compute dynamic pricing or use mock values
+                  const fourHourOrig = isDbCar ? Math.round((car.pricePerDay * 0.55) / 1000) + 'K' : car.fourHourPriceOrig;
+                  const fourHourActual = isDbCar ? Math.round((car.pricePerDay * 0.50) / 1000) + 'K' : car.fourHourPrice;
+                  const dayPriceOrig = isDbCar ? Math.round((car.pricePerDay * 1.1) / 1000) + 'K' : car.dayPriceOrig;
+                  const dayPriceActual = isDbCar ? Math.round(car.pricePerDay / 1000) + 'K' : car.dayPrice;
+
+                  return (
+                    <div key={car.id} className="premium-row-car-card" onClick={() => handleViewCarDetails(car)}>
+                      {/* Image Container */}
+                      <div className="card-image-box">
+                        <img src={car.image} alt={car.model} className="card-image-element" />
+
+                        {/* Top badges */}
+                        <div className="card-badge-top-container">
+                          <span className="promo-badge-glow-yellow">👑 Xế xịn</span>
+                        </div>
+
+                        {/* Bottom badge */}
+                        <div className="card-badge-bottom-container">
+                          {isDbCar ? (
+                            !car.ownerId ? (
+                              <span className="info-badge-deliver">📱 Tự nhận xe</span>
+                            ) : (
+                              <span className="info-badge-owner">🔑 Gặp chủ xe</span>
+                            )
+                          ) : (
+                            car.id === 'lux-car-1' ? (
+                              <span className="info-badge-deliver">📱 Tự nhận xe</span>
+                            ) : (
+                              <span className="info-badge-owner">🔑 Gặp chủ xe</span>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Body Content */}
+                      <div className="card-body-content-premium">
+                        <h3 className="card-title-main-premium">{car.brand.toUpperCase()} {car.model}</h3>
+                        <p className="card-location-subtext">
+                          {isDbCar ? `Quận ${car.location.replace('Quận ', '')}` : car.location}
+                        </p>
+
+                        {/* Double pricing row */}
+                        <div className="double-pricing-spec-grid">
+                          <div className="pricing-line-item">
+                            <span className="price-label-small" style={{ textDecoration: 'line-through' }}>{fourHourOrig}</span>
+                            <span className="price-actual-green">{fourHourActual}</span>
+                            <span className="price-unit-gray">/4h</span>
+                          </div>
+                          <div className="pricing-line-item">
+                            <span className="price-label-small" style={{ textDecoration: 'line-through' }}>{dayPriceOrig}</span>
+                            <span className="price-actual-green">{dayPriceActual}</span>
+                            <span className="price-unit-gray">/24h</span>
+                          </div>
+                        </div>
+
+                        {/* Specs Icons */}
+                        <div className="card-flat-specs-row">
+                          <div className="flat-spec-unit">
+                            <Users size={13} className="flat-spec-icon" />
+                            <span>{car.seats}</span>
+                          </div>
+                          <div className="flat-spec-unit">
+                            <SlidersHorizontal size={13} className="flat-spec-icon" />
+                            <span>{car.transmission || 'Số tự động'}</span>
+                          </div>
+                          <div className="flat-spec-unit">
+                            <Fuel size={13} className="flat-spec-icon" />
+                            <span>{car.fuel || 'Xăng'}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-
-                    {/* Bottom badge */}
-                    <div className="card-badge-bottom-container">
-                      {car.id === 'lux-car-1' ? (
-                        <span className="info-badge-deliver">📱 Tự nhận xe</span>
-                      ) : (
-                        <span className="info-badge-owner">🔑 Gặp chủ xe</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Body Content */}
-                  <div className="card-body-content-premium">
-                    <h3 className="card-title-main-premium">{car.brand} {car.model}</h3>
-                    <p className="card-location-subtext">{car.location}</p>
-
-                    {/* Double pricing row */}
-                    <div className="double-pricing-spec-grid">
-                      <div className="pricing-line-item">
-                        <span className="price-label-small">{car.fourHourPriceOrig}</span>
-                        <span className="price-actual-green">{car.fourHourPrice}</span>
-                        <span className="price-unit-gray">/4h</span>
-                      </div>
-                      <div className="pricing-line-item">
-                        <span className="price-label-small">{car.dayPriceOrig}</span>
-                        <span className="price-actual-green">{car.dayPrice}</span>
-                        <span className="price-unit-gray">/24h</span>
-                      </div>
-                    </div>
-
-                    {/* Specs Icons */}
-                    <div className="card-flat-specs-row">
-                      <div className="flat-spec-unit">
-                        <Users size={13} className="flat-spec-icon" />
-                        <span>{car.seats}</span>
-                      </div>
-                      <div className="flat-spec-unit">
-                        <SlidersHorizontal size={13} className="flat-spec-icon" />
-                        <span>Số tự động</span>
-                      </div>
-                      <div className="flat-spec-unit">
-                        <Fuel size={13} className="flat-spec-icon" />
-                        <span>Xăng</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  );
+                });
+              })()}
             </div>
 
             <button className="carousel-nav-arrow right" onClick={() => scrollContainer(luxuryScrollRef, 'right')}>
@@ -945,7 +981,7 @@ export const RentCar = ({ user, onRentCarClick, setCurrentTab, onSearch }) => {
                       {brand.name === 'MG' && (
                         <>
                           <polygon points="50,12 77,23 88,50 77,77 50,88 23,77 12,50 23,23" fill="none" stroke="currentColor" strokeWidth="5" strokeLinejoin="round" />
-                          <text x="50" y="59" textAnchor="middle" fill="currentColor" fontFamily="'Outfit', sans-serif" fontWeight="900" fontSize="28" letterSpacing="-1">MG</text>
+                          <text x="50" y="59" textAnchor="middle" fill="currentColor" fontFamily="'Inter', sans-serif" fontWeight="900" fontSize="28" letterSpacing="-1">MG</text>
                         </>
                       )}
                       {brand.name === 'Suzuki' && (
